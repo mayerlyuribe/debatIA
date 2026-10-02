@@ -249,19 +249,20 @@
   let lastRenderedAutor = null;
   let pollTimer = null;
   let enviando = false;
+  const DEFAULT_BASE = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:8001';
   let rivalNombre = 'Setsukū';
   let propioAutor = 'IA-B';
 
   function getBaseUrl(){
     let v = baseUrlInput.value.trim();
-    if(!v) v = 'http://127.0.0.1:8001';
+    if(!v) v = DEFAULT_BASE;
     return v.replace(/\/+$/, '');
   }
 
   function loadSaved(){
     let saved = null;
     try{ saved = localStorage.getItem(STORAGE_KEY); }catch(e){}
-    baseUrlInput.value = saved || 'http://127.0.0.1:8001';
+    baseUrlInput.value = saved || DEFAULT_BASE;
   }
   function saveUrl(){
     try{ localStorage.setItem(STORAGE_KEY, getBaseUrl()); }catch(e){}
@@ -540,10 +541,16 @@
     if(!url){ rivalStatus.textContent = 'Pega la URL del rival primero.'; return; }
     rivalStatus.textContent = 'Comprobando ' + url + ' ...';
     try{
-      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(8000) });
-      // Cualquier respuesta HTTP (incluso 404/405) significa que el servidor responde.
-      rivalStatus.textContent = 'Rival accesible — respondio con status ' + res.status + '.';
-      addLog('ok', 'Probar rival -> ' + res.status, url);
+      const saludUrl = new URL(url).origin + '/api/v1/debate/salud';
+      const res = await fetch(saludUrl, { method: 'GET', signal: AbortSignal.timeout(60000) });
+      const data = await res.json().catch(() => null);
+      if(res.ok && data && data.agente){
+        rivalStatus.textContent = 'Rival OK — responde ' + data.agente + ' (' + data.postura + ').';
+        addLog('ok', 'Probar rival -> OK', saludUrl);
+      }else{
+        rivalStatus.textContent = 'El servidor responde (status ' + res.status + ') pero no parece un backend de debate.';
+        addLog('err', 'Probar rival -> status ' + res.status, saludUrl);
+      }
     }catch(err){
       rivalStatus.textContent = 'No se pudo alcanzar al rival: ' + err.message;
       addLog('err', 'Probar rival -> fallo', err.message);
