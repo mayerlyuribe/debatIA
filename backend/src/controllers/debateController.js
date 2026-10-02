@@ -1,6 +1,7 @@
 import { AGENTE, RIVAL } from '../config/agente.js';
 import { TURNOS_MAX } from '../config/debate.js';
 import { getRivalWebhookUrl, guardarRivalWebhookUrl } from '../services/config.service.js';
+import { enviarAlRival } from '../services/webhook.service.js';
 import {
     crearHistorialInicial,
     contarTurnos,
@@ -10,11 +11,10 @@ import {
 } from '../services/debate.service.js';
 import { estado } from '../services/estado.service.js';
 
-// POST /iniciar  -> cualquiera de los dos puede abrir el debate: quien inicia genera
-// SU primer argumento (con SU postura) y se lo entrega al rival, que responde.
+// POST /iniciar -> quien inicia SOLO plantea el tema (como moderador) y se lo manda
+// al rival. El rival es quien responde primero; despues se alternan los turnos.
 export const iniciarDebate = async (req, res) => {
     const { tema, forzar } = req.body;
-    const aclaracion = typeof req.body.aclaracion === 'string' ? req.body.aclaracion.trim() : '';
 
     // Cualquiera de los dos puede iniciar, pero no si ya hay un debate en curso.
     if (estado.enCurso && forzar !== true) {
@@ -23,26 +23,38 @@ export const iniciarDebate = async (req, res) => {
         });
     }
 
+    if (!getRivalWebhookUrl()) {
+        return res.status(400).json({
+            msg: `falta la URL de ${RIVAL.nombre}: configurala en el panel (ajustes -> Rival) antes de iniciar`
+        });
+    }
+
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`[${AGENTE.nombre}] planteando el tema: "${tema}" (responde primero ${RIVAL.nombre})`);
+    console.log('='.repeat(60));
+
+    const historial = crearHistorialInicial(tema);
+
     estado.enCurso = true;
     estado.inicie = true;
     estado.pendiente = null;
     estado.terminado = false;
-
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`[${AGENTE.nombre}] iniciando debate sobre: "${tema}"`);
-    console.log('='.repeat(60));
-
-    const historial = crearHistorialInicial(tema);
+    estado.generando = false;
     estado.historial = historial;
 
-    // Se responde de inmediato; el primer argumento se genera y se entrega despues.
-    res.status(200).json({ msg: 'debate iniciado, generando el primer argumento', tema });
-
-    responderTurno(historial, aclaracion).catch((error) => {
+    try {
+        await enviarAlRival({ historial, terminado: false });
+    } catch (error) {
         estado.enCurso = false;
         estado.inicie = false;
-        console.error(`[${AGENTE.nombre}] error inesperado al abrir el debate:`, error);
-    });
+        estado.historial = [];
+        console.error(`[${AGENTE.nombre}] no se pudo entregar el tema a ${RIVAL.nombre}: ${error.message}`);
+        return res.status(502).json({
+            msg: `no se pudo entregar el tema a ${RIVAL.nombre} (${error.message}). Revisa que este encendido y la URL del rival`
+        });
+    }
+
+    res.status(200).json({ msg: `tema enviado: ${RIVAL.nombre} responde primero`, tema });
 };
 
 // POST /webhook  -> recibe el historial del rival.
@@ -60,10 +72,10 @@ export const recibirWebhook = (req, res) => {
         });
     }
 
-    // Choque real: yo ya abri MI debate y el rival tambien abrio el suyo (su
-    // historial no trae ningun turno mio). Una respuesta normal a mi apertura
-    // siempre trae al menos un turno mio, asi que nunca cuenta como choque.
-    const choque = estado.inicie && terminado !== true && contarTurnos(historial, AGENTE.autor) === 0;
+    // Choque real: yo ya plantee MI tema y el rival tambien planteo el suyo (llega otro
+    // mensaje de solo-tema). La respuesta normal a mi tema trae un turno del rival, asi
+    // que nunca cuenta como choque.
+    const choque = estado.inicie && terminado !== true && esPreguntaInicial;
     if (choque) {
         console.log(`[${AGENTE.nombre}] ${RIVAL.nombre} tambien inicio un debate a la vez. Se rechaza el suyo.`);
         return res.status(409).json({

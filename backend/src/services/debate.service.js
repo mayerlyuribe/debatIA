@@ -15,16 +15,20 @@ export const debateCompleto = (historial) =>
     contarTurnos(historial, AGENTE.autor) >= TURNOS_MAX
     && contarTurnos(historial, RIVAL.autor) >= TURNOS_MAX;
 
-export const crearHistorialInicial = (tema) => [
-    {
-        autor: 'moderador',
-        texto: `Tema del debate: "${tema}". `
-            + `${AGENTE.autor} (${AGENTE.nombre}) defiende la postura ${AGENTE.postura}. `
-            + `${RIVAL.autor} (${RIVAL.nombre}) defiende la postura ${RIVAL.postura}. `
-            + `Cada IA defiende SIEMPRE su propia postura, desde el primer turno hasta el ultimo. `
-            + `Abre el debate ${AGENTE.autor} (${AGENTE.nombre}); responde ${RIVAL.autor} (${RIVAL.nombre}).`
-    }
-];
+export const crearHistorialInicial = (tema) => {
+    // Siempre en el mismo orden (IA-A primero) para que el texto sea igual en los dos backends.
+    const [uno, otro] = [AGENTE, RIVAL].sort((x, y) => x.autor.localeCompare(y.autor));
+    return [
+        {
+            autor: 'moderador',
+            texto: `Tema del debate: "${tema}". `
+                + `${uno.autor} (${uno.nombre}) defiende la postura ${uno.postura}. `
+                + `${otro.autor} (${otro.nombre}) defiende la postura ${otro.postura}. `
+                + `Cada IA defiende SIEMPRE su propia postura, desde el primer turno hasta el ultimo. `
+                + `Quien plantea el tema no habla primero: abre el debate la otra IA y despues se alternan.`
+        }
+    ];
+};
 
 const construirContenidos = (historial, aclaracion) => {
     const contenidos = [];
@@ -40,6 +44,16 @@ const construirContenidos = (historial, aclaracion) => {
             contenidos.push({ role, parts: [{ text: contenido }] });
         }
     }
+
+    // Recordatorio de rol en CADA turno: evita que el modelo se confunda de bando.
+    const soloTema = historial.length === 1 && historial[0].autor === 'moderador';
+    contenidos.at(-1).parts[0].text +=
+        `\n\n[recordatorio del sistema]: tu eres ${AGENTE.nombre} (${AGENTE.autor}) y defiendes UNICAMENTE la postura ${AGENTE.postura}. `
+        + `Tu rival es ${RIVAL.nombre} (${RIVAL.autor}) y defiende ${RIVAL.postura}. `
+        + (soloTema
+            ? `El moderador solo planteo el tema y todavia nadie hablo: abre el debate TU con tu mejor argumento ${AGENTE.postura}. `
+            : `Contraargumenta lo ultimo que dijo ${RIVAL.nombre}. `)
+        + `Habla siempre en primera persona como ${AGENTE.nombre}; nunca adoptes ni concedas la postura ${RIVAL.postura}.`;
 
     // Indicacion puntual del humano para este turno (no se guarda en el historial).
     if (aclaracion) {
