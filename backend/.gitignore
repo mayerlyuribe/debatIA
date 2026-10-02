@@ -1,0 +1,4 @@
+node_modules/
+.env
+rival.json
+debates/

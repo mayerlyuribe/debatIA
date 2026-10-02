@@ -1,0 +1,3 @@
+{
+  "ignore": ["debates/*", "node_modules"]
+}

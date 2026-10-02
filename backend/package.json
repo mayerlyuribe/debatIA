@@ -1,0 +1,23 @@
+{
+  "name": "debate-en-contra",
+  "version": "1.0.0",
+  "description": "Backend del agente de debate NOVA (postura EN CONTRA). Se comunica con Setsukū (A FAVOR) por webhook en localhost.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "ISC"
+}

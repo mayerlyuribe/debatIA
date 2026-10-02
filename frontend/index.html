@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NOVA — Chat del debate</title>
+<style>
+  :root{
+    --bg:#0e0f13;
+    --header:#181a21;
+    --chat:#101218;
+    --panel:#1a1c24;
+    --panel-2:#20222c;
+    --line:#2a2c37;
+    --text:#e9e8e2;
+    --muted:#8d8f9c;
+    --accent:#3f7cac;
+    --accent-dim:#28506e;
+    --accent-soft:#1f2e3a;
+    --rival-bubble:#262834;
+    --ok:#5fa878;
+    --warn:#d0a341;
+    --err:#c1443c;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --serif:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --gold:#6f9fc2;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column;
+    height:100dvh;overflow:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+  .app{position:relative;max-width:640px;width:100%;margin:0 auto;height:100%;display:flex;flex-direction:column;
+    background:var(--chat);box-shadow:0 0 0 1px var(--line),0 0 60px rgba(0,0,0,.6);}
+  .app::after{content:"";position:absolute;inset:0;pointer-events:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.05;mix-blend-mode:overlay;}
+  .vtag{position:absolute;right:5px;top:96px;writing-mode:vertical-rl;font-family:var(--serif);font-size:11px;
+    letter-spacing:.5em;color:#35363c;pointer-events:none;user-select:none;z-index:1;}
+
+  header{flex:0 0 auto;display:flex;align-items:center;gap:13px;padding:13px 16px;background:var(--header);
+    border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(63,124,172,.22);}
+  .avatar{width:42px;height:42px;border-radius:5px;background:var(--accent-dim);border:1px solid var(--accent);
+    box-shadow:inset 0 0 0 3px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-size:20px;color:#e9e8e2;flex-shrink:0;}
+  .who{flex:1;min-width:0;}
+  .who .name{font-family:var(--serif);font-size:17px;letter-spacing:.06em;color:var(--text);display:flex;align-items:center;gap:8px;}
+  .who .kana{font-size:10.5px;letter-spacing:.3em;color:var(--gold);opacity:.85;}
+  .who .sub{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;opacity:.9;}
+  .dot.ok{background:var(--ok);} .dot.bad{background:var(--err);}
+  .iconbtn{width:34px;height:34px;border-radius:5px;border:1px solid var(--line);background:transparent;color:var(--muted);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;transition:background .15s,color .15s;}
+  .iconbtn:hover{background:var(--panel-2);color:var(--text);}
+  .iconbtn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--text);}
+
+  #drawer{flex:0 0 auto;max-height:0;overflow:hidden;background:var(--panel);border-bottom:1px solid var(--line);transition:max-height .25s ease;}
+  #drawer.open{max-height:70vh;overflow-y:auto;}
+  .drawer-inner{padding:15px 16px 18px;}
+  .drow{margin-bottom:17px;} .drow:last-child{margin-bottom:0;}
+  .drow h3{font-family:var(--serif);font-size:12px;letter-spacing:.08em;color:var(--gold);margin:0 0 8px;font-weight:400;
+    padding-bottom:5px;border-bottom:1px solid var(--line);}
+  .conn{display:flex;gap:8px;align-items:center;}
+  .conn input[type=text]{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text);
+    font-family:var(--mono);font-size:12.5px;padding:8px 10px;}
+  .conn input:focus{outline:none;border-color:var(--accent);}
+  .status-line{font-size:11.5px;color:var(--muted);margin-top:6px;font-family:var(--mono);}
+  .modo-switch{display:flex;gap:8px;}
+  .modo-btn{flex:1;padding:9px 10px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--muted);
+    font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;}
+  .modo-btn small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:2px;}
+  .modo-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--text);}
+  .modo-btn.active small{color:#a89f93;}
+  textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text);
+    font-family:var(--sans);font-size:13px;padding:8px 10px;resize:vertical;}
+  textarea:focus{outline:none;border-color:var(--accent);}
+  .checkrow{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .checkrow input{width:auto;} .checkrow label{margin:0;color:var(--muted);font-size:12.5px;}
+  button.pill{font-family:var(--sans);font-size:12.5px;font-weight:600;letter-spacing:.03em;border:1px solid var(--accent);
+    background:transparent;color:#b8625f;padding:8px 14px;border-radius:4px;cursor:pointer;transition:background .15s,color .15s;}
+  button.pill:hover{background:var(--accent-dim);color:var(--text);}
+  button.pill.solid{background:var(--accent-dim);color:var(--text);}
+  button.pill.solid:hover{background:var(--accent);}
+  button.pill.ghost{border-color:var(--line);color:var(--muted);}
+  button.pill.ghost:hover{background:var(--panel-2);color:var(--text);}
+  button.pill:disabled{opacity:.4;cursor:not-allowed;}
+  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  details.log{font-size:11.5px;color:var(--muted);}
+  details.log summary{cursor:pointer;font-family:var(--mono);color:var(--muted);}
+  #log{margin-top:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px;max-height:180px;
+    overflow-y:auto;font-family:var(--mono);font-size:11px;line-height:1.55;}
+  .entry{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+  .entry:last-child{border:none;margin:0;padding:0;}
+  .entry .meta.ok{color:var(--ok);} .entry .meta.err{color:var(--err);}
+  .entry pre{margin:3px 0 0;white-space:pre-wrap;word-break:break-word;color:var(--text);}
+
+  #chat{flex:1 1 auto;overflow-y:auto;padding:14px 0 10px;
+    background:radial-gradient(ellipse at 50% 0%,rgba(88,38,41,.14),transparent 55%),
+               radial-gradient(ellipse at 50% 100%,rgba(0,0,0,.5),transparent 60%),var(--chat);}
+  .placeholder{color:var(--muted);font-size:13px;text-align:center;margin-top:44px;padding:0 34px;line-height:1.7;font-family:var(--serif);}
+  .placeholder .tag{display:block;font-family:var(--mono);font-size:10.5px;color:var(--gold);margin-bottom:10px;letter-spacing:.12em;}
+  .row{display:flex;padding:2px 24px 2px 14px;margin:1px 0;}
+  .row.own{justify-content:flex-end;} .row.rival{justify-content:flex-start;}
+  .row.mod{justify-content:center;margin:12px 0;} .row.first-in-run{margin-top:9px;}
+  .label{font-family:var(--serif);font-size:11px;letter-spacing:.1em;color:var(--muted);margin:0 0 3px 4px;}
+  .bubble{max-width:78%;padding:9px 13px 7px;border-radius:4px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;
+    word-wrap:break-word;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.35);}
+  .row.own .bubble{background:#1f2e3a;border:1px solid #28506e;color:#e9e8e2;border-bottom-right-radius:1px;border-right:2px solid var(--accent);}
+  .row.rival .bubble{background:var(--rival-bubble);border:1px solid #272932;color:var(--text);border-bottom-left-radius:1px;border-left:2px solid #3a3d4a;}
+  .row.mod .bubble{background:transparent;box-shadow:none;border:none;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    border-radius:0;color:var(--muted);font-family:var(--serif);font-size:12px;text-align:center;max-width:88%;padding:7px 14px;}
+  .time{display:block;font-size:10px;margin-top:3px;text-align:right;letter-spacing:.04em;}
+  .row.own .time{color:rgba(255,255,255,.72);} .row.rival .time{color:var(--muted);}
+  .typing .bubble{display:flex;align-items:center;gap:5px;padding:11px 14px;}
+  .typing .dot-anim{width:5px;height:5px;border-radius:50%;background:#a89f93;animation:blink 1.4s infinite;}
+  .row.rival.typing .dot-anim{background:var(--muted);}
+  .typing .dot-anim:nth-child(2){animation-delay:.25s;} .typing .dot-anim:nth-child(3){animation-delay:.5s;}
+  @keyframes blink{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
+
+  #composer{flex:0 0 auto;display:flex;gap:8px;align-items:flex-end;padding:10px 12px;background:var(--header);
+    border-top:1px solid var(--line);box-shadow:0 -1px 0 rgba(63,124,172,.15);}
+  #composer textarea{flex:1;min-height:38px;max-height:110px;border-radius:6px;padding:9px 14px;font-size:14px;background:var(--panel);border:1px solid var(--line);}
+  #composer textarea:disabled{color:var(--muted);}
+  #sendBtn{width:40px;height:40px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--text);
+    font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s,opacity .15s;}
+  #sendBtn:hover{background:var(--accent);}
+  #sendBtn:disabled{opacity:.35;cursor:not-allowed;background:var(--panel-2);border-color:var(--line);}
+  #composerHint{flex:1;font-size:12.5px;color:var(--muted);padding:11px 16px;background:var(--panel);border:1px solid var(--line);
+    border-radius:6px;font-family:var(--serif);letter-spacing:.02em;}
+  ::-webkit-scrollbar{width:6px;height:6px;} ::-webkit-scrollbar-thumb{background:#2a2b31;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="avatar">NO</div>
+    <div class="who">
+      <div class="name">NOVA <span class="dot" id="connDot"></span></div>
+      <div class="sub" id="subLine">sin conectar todavia</div>
+    </div>
+    <button class="iconbtn" id="btnDrawer" title="Ajustes">⚙</button>
+  </header>
+
+  <div id="drawer">
+    <div class="drawer-inner">
+
+      <div class="drow">
+        <h3>Este backend (NOVA)</h3>
+        <div class="conn">
+          <input type="text" id="baseUrl" placeholder="http://127.0.0.1:8001" spellcheck="false">
+          <button class="pill ghost" id="btnGuardar">Guardar</button>
+          <button class="pill" id="btnProbar">Probar</button>
+        </div>
+        <div class="status-line" id="statusLine">Sin comprobar todavia.</div>
+      </div>
+
+      <div class="drow">
+        <h3>Rival (backend de Setsukū)</h3>
+        <div class="conn">
+          <input type="text" id="rivalUrl" placeholder="http://127.0.0.1:8000/api/v1/debate/webhook" spellcheck="false">
+          <button class="pill ghost" id="btnGuardarRival">Guardar</button>
+          <button class="pill" id="btnProbarRival">Probar</button>
+        </div>
+        <div class="status-line" id="rivalStatus">Sin cargar todavia.</div>
+      </div>
+
+      <div class="drow">
+        <h3>Modo de respuesta</h3>
+        <div class="modo-switch">
+          <button type="button" class="modo-btn" id="btnModoManual">
+            Manual
+            <small>Llega el turno del rival y vos decidis cuando responder.</small>
+          </button>
+          <button type="button" class="modo-btn" id="btnModoAuto">
+            Automatico
+            <small>NOVA responde sola apenas le toca el turno.</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="drow">
+        <h3>Iniciar debate</h3>
+        <textarea id="tema" rows="2" placeholder="Tema del debate, ej: La IA mejora la educacion"></textarea>
+        <div class="actions">
+          <button class="pill solid" id="btnIniciar">Iniciar debate</button>
+        </div>
+        <div class="checkrow">
+          <input type="checkbox" id="forzar">
+          <label for="forzar">Forzar (reemplazar un debate en curso)</label>
+        </div>
+      </div>
+
+      <div class="drow">
+        <h3>Otras acciones</h3>
+        <div class="actions">
+          <button class="pill ghost" id="btnEstado">Ver estado</button>
+          <button class="pill ghost" id="btnReiniciar">Reiniciar estado</button>
+        </div>
+      </div>
+
+      <div class="drow">
+        <details class="log">
+          <summary>Registro tecnico (peticiones al backend)</summary>
+          <div id="log"></div>
+        </details>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="chat">
+    <div class="placeholder" id="placeholder">
+      <span class="tag">DEBATE-EN-CONTRA · NOVA</span>
+      Conectate al backend (icono ⚙ arriba) para ver la conversacion en vivo entre NOVA y Setsukū.
+    </div>
+  </div>
+
+  <div id="composer">
+    <div id="composerHint">Conectate primero para empezar.</div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'setsuku_chat_base_url';
+  const $ = (id) => document.getElementById(id);
+
+  const baseUrlInput = $('baseUrl');
+  const connDot = $('connDot');
+  const subLine = $('subLine');
+  const statusLine = $('statusLine');
+  const log = $('log');
+  const chat = $('chat');
+  const placeholder = $('placeholder');
+  const composer = $('composer');
+  const drawer = $('drawer');
+  const btnDrawer = $('btnDrawer');
+  const btnModoManual = $('btnModoManual');
+  const btnModoAuto = $('btnModoAuto');
+  const rivalUrl = $('rivalUrl');
+  const rivalStatus = $('rivalStatus');
+
+  let conectado = false;
+  let modoActual = null;
+  let terminado = false;
+  let hayPendiente = false;
+  let generando = false;
+  let renderedCount = 0;
+  let lastRenderedAutor = null;
+  let pollTimer = null;
+  let enviando = false;
+  let rivalNombre = 'Setsukū';
+  let propioAutor = 'IA-B';
+
+  function getBaseUrl(){
+    let v = baseUrlInput.value.trim();
+    if(!v) v = 'http://127.0.0.1:8001';
+    return v.replace(/\/+$/, '');
+  }
+
+  function loadSaved(){
+    let saved = null;
+    try{ saved = localStorage.getItem(STORAGE_KEY); }catch(e){}
+    baseUrlInput.value = saved || 'http://127.0.0.1:8001';
+  }
+  function saveUrl(){
+    try{ localStorage.setItem(STORAGE_KEY, getBaseUrl()); }catch(e){}
+    addLog('info', 'URL guardada: ' + getBaseUrl());
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fmtTime(d){
+    return (d || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function addLog(kind, title, data){
+    const entry = document.createElement('div');
+    entry.className = 'entry';
+    const metaClass = kind === 'ok' ? 'ok' : (kind === 'err' ? 'err' : '');
+    let html = '<div class="meta ' + metaClass + '">[' + fmtTime() + '] ' + escapeHtml(title) + '</div>';
+    if(data !== undefined){
+      let text;
+      try{ text = typeof data === 'string' ? data : JSON.stringify(data, null, 2); }
+      catch(e){ text = String(data); }
+      html += '<pre>' + escapeHtml(text) + '</pre>';
+    }
+    entry.innerHTML = html;
+    log.prepend(entry);
+  }
+
+  async function llamar(method, path, body, { silent } = {}){
+    const url = getBaseUrl() + '/api/v1/debate' + path;
+    try{
+      const opts = { method, headers: {}, signal: AbortSignal.timeout(10000) };
+      if(body !== undefined){
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, opts);
+      const raw = await res.text();
+      let data;
+      try{ data = raw ? JSON.parse(raw) : null; }catch(e){ data = raw; }
+
+      if(!silent){
+        if(res.ok) addLog('ok', method + ' ' + path + ' -> ' + res.status, data);
+        else addLog('err', method + ' ' + path + ' -> ' + res.status, data);
+      }
+      return { ok: res.ok, status: res.status, data };
+    }catch(err){
+      if(!silent) addLog('err', method + ' ' + path + ' -> fallo de red', err.message);
+      return { ok: false, error: err };
+    }
+  }
+
+  function setConn(state){
+    conectado = state === true;
+    connDot.className = 'dot' + (state === true ? ' ok' : state === false ? ' bad' : '');
+  }
+
+  function setModoUI(modo){
+    modoActual = modo;
+    btnModoManual.classList.toggle('active', modo === 'manual');
+    btnModoAuto.classList.toggle('active', modo === 'auto');
+    renderComposer();
+  }
+
+  function scrollToBottom(){
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function clearChat(){
+    chat.innerHTML = '';
+    renderedCount = 0;
+    lastRenderedAutor = null;
+    removeTyping();
+  }
+
+  function removeTyping(){
+    const t = chat.querySelector('.row.typing');
+    if(t) t.remove();
+  }
+
+  function renderTurno(turno){
+    const esModerador = turno.autor === 'moderador';
+    const esPropio = turno.autor === propioAutor;
+    const rowClass = esModerador ? 'mod' : (esPropio ? 'own' : 'rival');
+
+    if(placeholder) placeholder.remove();
+
+    const firstInRun = lastRenderedAutor !== turno.autor;
+    lastRenderedAutor = turno.autor;
+
+    if(!esModerador && rowClass === 'rival' && firstInRun){
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.style.marginLeft = '14px';
+      label.textContent = rivalNombre;
+      chat.appendChild(label);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'row ' + rowClass + (firstInRun ? ' first-in-run' : '');
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = escapeHtml(turno.texto).replace(/\n/g, '<br>');
+
+    if(!esModerador){
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = fmtTime();
+      bubble.appendChild(time);
+    }
+
+    row.appendChild(bubble);
+    chat.appendChild(row);
+  }
+
+  function renderTyping(){
+    removeTyping();
+    const row = document.createElement('div');
+    row.className = 'row own typing';
+    row.innerHTML = '<div class="bubble"><span class="dot-anim"></span><span class="dot-anim"></span><span class="dot-anim"></span></div>';
+    chat.appendChild(row);
+    scrollToBottom();
+  }
+
+  function renderComposer(){
+    if(!conectado){
+      composer.innerHTML = '<div id="composerHint">Conectate primero (⚙) para empezar.</div>';
+      return;
+    }
+    if(terminado){
+      composer.innerHTML = '<div id="composerHint">Debate finalizado. Inicia uno nuevo desde ⚙.</div>';
+      return;
+    }
+    if(modoActual === 'auto'){
+      composer.innerHTML = '<div id="composerHint">Modo automatico activado — NOVA responde sola, no hace falta que escribas nada.</div>';
+      return;
+    }
+    if(!hayPendiente){
+      composer.innerHTML = '<div id="composerHint">Esperando el proximo turno de ' + escapeHtml(rivalNombre) + '...</div>';
+      return;
+    }
+    composer.innerHTML =
+      '<textarea id="aclaracionInput" rows="1" placeholder="Aclaracion opcional para el proximo turno de NOVA..." ' + (enviando ? 'disabled' : '') + '></textarea>' +
+      '<button id="sendBtn" title="Generar y enviar respuesta" ' + (enviando ? 'disabled' : '') + '>➤</button>';
+
+    const ta = $('aclaracionInput');
+    const btn = $('sendBtn');
+    ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(110, ta.scrollHeight) + 'px'; });
+    ta.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); btn.click(); }
+    });
+    btn.addEventListener('click', enviarRespuesta);
+  }
+
+  async function enviarRespuesta(){
+    if(enviando) return;
+    const ta = $('aclaracionInput');
+    const aclaracion = ta ? ta.value.trim() : '';
+    enviando = true;
+    renderComposer();
+    renderTyping();
+    const r = await llamar('POST', '/responder', { aclaracion });
+    if(!r.ok){
+      enviando = false;
+      renderComposer();
+      removeTyping();
+    }
+    // Si ok, el polling de /historial se encarga de mostrar el nuevo turno
+    // y de resetear "enviando" cuando cambie hayPendiente.
+  }
+
+  async function fetchHistorial(){
+    const r = await llamar('GET', '/historial', undefined, { silent: true });
+    if(!r.ok) return;
+    const d = r.data || {};
+
+    if(d.rival) rivalNombre = d.rival;
+    if(d.autor) propioAutor = d.autor;
+
+    const nuevoModo = d.modo || modoActual;
+    const nuevoTerminado = Boolean(d.terminado);
+    const nuevoPendiente = Boolean(d.hayPendiente);
+    const nuevoGenerando = Boolean(d.generando);
+    const historial = Array.isArray(d.historial) ? d.historial : [];
+
+    subLine.textContent = nuevoTerminado
+      ? 'debate finalizado · rival: ' + rivalNombre
+      : (nuevoModo === 'auto' ? 'automatico' : 'manual') + ' · rival: ' + rivalNombre;
+
+    // Si el historial es mas corto que lo ya pintado, hubo un reinicio/nuevo debate.
+    if(historial.length < renderedCount){
+      clearChat();
+    }
+
+    if(historial.length > renderedCount){
+      removeTyping();
+      for(let i = renderedCount; i < historial.length; i++){
+        renderTurno(historial[i]);
+      }
+      renderedCount = historial.length;
+      scrollToBottom();
+      enviando = false;
+    }
+
+    if(nuevoGenerando && !generando){
+      renderTyping();
+      scrollToBottom();
+    } else if(!nuevoGenerando){
+      removeTyping();
+    }
+
+    const cambioEstado = nuevoModo !== modoActual || nuevoTerminado !== terminado || nuevoPendiente !== hayPendiente;
+    modoActual = nuevoModo;
+    terminado = nuevoTerminado;
+    hayPendiente = nuevoPendiente;
+    generando = nuevoGenerando;
+
+    if(cambioEstado){
+      setModoUI(modoActual);
+      renderComposer();
+    }
+  }
+
+  function startPolling(){
+    if(pollTimer) clearInterval(pollTimer);
+    fetchHistorial();
+    pollTimer = setInterval(fetchHistorial, 1500);
+  }
+
+  async function probarConexion(){
+    statusLine.textContent = 'Comprobando ' + getBaseUrl() + ' ...';
+    const r = await llamar('GET', '/salud');
+    if(r.ok){
+      setConn(true);
+      const d = r.data || {};
+      if(d.rival && d.rival.nombre) rivalNombre = d.rival.nombre;
+      statusLine.textContent = 'Conectado — agente: ' + (d.agente || '?') + ' (' + (d.postura || '') + ')';
+      setModoUI(d.modo || 'manual');
+      startPolling();
+      cargarRival();
+    }else{
+      setConn(false);
+      statusLine.textContent = 'No se pudo conectar a ' + getBaseUrl() + '. Revisa que el backend este corriendo.';
+      subLine.textContent = 'sin conexion';
+      if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+      renderComposer();
+    }
+  }
+
+  async function cargarRival(){
+    const r = await llamar('GET', '/rival', undefined, { silent: true });
+    if(r.ok && r.data && r.data.rivalWebhookUrl){
+      rivalUrl.value = r.data.rivalWebhookUrl;
+      rivalStatus.textContent = 'Rival configurado: ' + r.data.rivalWebhookUrl;
+    } else if(r.ok){
+      rivalStatus.textContent = 'Rival sin configurar todavia.';
+    }
+  }
+
+  async function guardarRival(){
+    const url = rivalUrl.value.trim();
+    if(!url){ rivalStatus.textContent = 'Pega la URL del rival primero.'; return; }
+    rivalStatus.textContent = 'Guardando...';
+    const r = await llamar('POST', '/rival', { rivalWebhookUrl: url });
+    if(r.ok){
+      rivalStatus.textContent = 'Rival guardado: ' + (r.data && r.data.rivalWebhookUrl ? r.data.rivalWebhookUrl : url);
+    }else{
+      const detalle = r.data && r.data.errors ? r.data.errors.map(e => e.msg).join('; ') : 'revisa la URL';
+      rivalStatus.textContent = 'No se pudo guardar: ' + detalle;
+    }
+  }
+
+  async function probarRival(){
+    const url = rivalUrl.value.trim();
+    if(!url){ rivalStatus.textContent = 'Pega la URL del rival primero.'; return; }
+    rivalStatus.textContent = 'Comprobando ' + url + ' ...';
+    try{
+      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(8000) });
+      // Cualquier respuesta HTTP (incluso 404/405) significa que el servidor responde.
+      rivalStatus.textContent = 'Rival accesible — respondio con status ' + res.status + '.';
+      addLog('ok', 'Probar rival -> ' + res.status, url);
+    }catch(err){
+      rivalStatus.textContent = 'No se pudo alcanzar al rival: ' + err.message;
+      addLog('err', 'Probar rival -> fallo', err.message);
+    }
+  }
+
+  btnDrawer.addEventListener('click', () => drawer.classList.toggle('open'));
+  $('btnGuardar').addEventListener('click', saveUrl);
+  $('btnProbar').addEventListener('click', probarConexion);
+  $('btnEstado').addEventListener('click', probarConexion);
+  $('btnGuardarRival').addEventListener('click', guardarRival);
+  $('btnProbarRival').addEventListener('click', probarRival);
+
+  btnModoManual.addEventListener('click', async () => {
+    const r = await llamar('POST', '/modo', { modo: 'manual' });
+    if(r.ok) setModoUI('manual');
+  });
+  btnModoAuto.addEventListener('click', async () => {
+    const r = await llamar('POST', '/modo', { modo: 'auto' });
+    if(r.ok) setModoUI('auto');
+  });
+
+  $('btnIniciar').addEventListener('click', async () => {
+    const tema = $('tema').value.trim();
+    if(!tema){ addLog('err', 'Iniciar', 'El tema es obligatorio.'); return; }
+    const body = { tema };
+    if($('forzar').checked) body.forzar = true;
+    const r = await llamar('POST', '/iniciar', body);
+    if(r.ok){
+      clearChat();
+      drawer.classList.remove('open');
+      fetchHistorial();
+    }
+  });
+
+  $('btnReiniciar').addEventListener('click', async () => {
+    await llamar('POST', '/reiniciar');
+    clearChat();
+    fetchHistorial();
+  });
+
+  baseUrlInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){ saveUrl(); probarConexion(); }
+  });
+
+  loadSaved();
+  probarConexion();
+})();
+</script>
+</body>
+</html>
