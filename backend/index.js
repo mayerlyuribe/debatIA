@@ -14,6 +14,7 @@ validarConfiguracion();
 await cargarConfiguracion();
 
 const app = express();
+app.use(express.static("public"));
 
 // Permite llamadas desde el panel de control (que corre en otro origen: file://, otro puerto, otra PC).
 app.use((req, res, next) => {
